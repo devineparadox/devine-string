@@ -1,7 +1,7 @@
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import SessionPasswordNeeded
+from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
 from pyrogram.types import Message
 from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
@@ -14,7 +14,7 @@ bot = Client("session_generator_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 telethon_client = TelegramClient(StringSession(), TELETHON_API_ID, TELETHON_API_HASH)
 
 # Function to generate session string using Pyrogram
-async def generate_pyrogram_session(client, message: Message):
+async def generate_pyrogram_session(client, message: Message, retries=3):
     await message.reply("Please enter your phone number in international format (e.g., +123456789):")
 
     phone_number = await bot.listen(message.chat.id)
@@ -43,11 +43,11 @@ async def generate_pyrogram_session(client, message: Message):
         await message.reply(f"Here is your Pyrogram session string:\n\n`{session_string}`")
 
     except BadMsgNotification as e:
-        if e.error_code == 16:
+        if retries > 0:
             await asyncio.sleep(1)
-            await generate_pyrogram_session(client, message)
+            await generate_pyrogram_session(client, message, retries-1)
         else:
-            await message.reply(f"An error occurred: {str(e)}")
+            await message.reply(f"An error occurred after multiple retries: {str(e)}")
     except Exception as e:
         await message.reply(f"An error occurred: {str(e)}")
     finally:
@@ -82,14 +82,13 @@ async def generate_telethon_session(client, message: Message):
 @bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
 async def stats(client, message):
     # Implement your statistics logic here
-    # Example: Fetch number of active users, sessions, etc.
     await message.reply("Bot statistics:\nActive users: 100\nSessions: 50")
 
 # Logging bot startup events to a specified channel
 @bot.on_chat_member_updated()
 async def log_startup(_, member):
     # Replace with your log channel ID
-    log_channel_id = -1002105459243  # Example channel ID
+    log_channel_id = -1001234567890  # Example channel ID
 
     if member.new_chat_member and member.new_chat_member.user.id == bot.get_me().id:
         await bot.send_message(log_channel_id, f"Bot started in {member.chat.title}")
