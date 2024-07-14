@@ -1,0 +1,13 @@
+# Virtual environment
+venv/
+
+# Byte-compiled files
+__pycache__/
+
+# Environment variables
+.env
+
+# Other
+*.pyc
+*.log
+.DS_Store
