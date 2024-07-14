@@ -1,7 +1,7 @@
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
+from pyrogram.errors import SessionPasswordNeeded
 from pyrogram.types import Message
 from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
