@@ -1,6 +1,6 @@
 import asyncio
 import ntplib
-from time import ctime
+from time import ctime, time, sleep
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
@@ -18,7 +18,9 @@ telethon_client = TelegramClient(StringSession(), TELETHON_API_ID, TELETHON_API_
 def sync_time():
     client = ntplib.NTPClient()
     response = client.request('pool.ntp.org')
-    print("System time synchronized to: ", ctime(response.tx_time))
+    current_time = ctime(response.tx_time)
+    print(f"System time synchronized to: {current_time}")
+    return response.tx_time
 
 # Function to generate session string using Pyrogram
 async def generate_pyrogram_session(client, message: Message, retries=3):
@@ -124,5 +126,10 @@ async def callback_handler(client, callback):
         await callback.answer("Invalid option selected!")
 
 if __name__ == "__main__":
-    sync_time()
-    bot.run()
+    try:
+        sync_time()
+        print(f"Current system time (epoch): {time()}")
+        sleep(2)  # Sleep for a short while to ensure time synchronization takes effect
+        bot.run()
+    except Exception as e:
+        print(f"An error occurred during startup: {str(e)}")
