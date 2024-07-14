@@ -1,1 +1,3 @@
-pip freeze > requirements.txt
+pyrogram==1.4.0
+telethon==1.23.0
+requests==2.26.0
