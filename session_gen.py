@@ -83,7 +83,7 @@ async def stats(client, message):
 @bot.on_chat_member_updated()
 async def log_startup(_, member):
     # Replace with your log channel ID
-    log_channel_id = -1001234567890  # Example channel ID
+    log_channel_id = -1002105459243  # Example channel ID
 
     if member.new_chat_member and member.new_chat_member.user.id == bot.get_me().id:
         await bot.send_message(log_channel_id, f"Bot started in {member.chat.title}")
@@ -99,7 +99,7 @@ async def start(client, message):
         ]
     ])
 
-    await message.reply("Welcome to the Session String Generator Bot! Please choose an option:", reply_markup=keyboard)
+    await message.reply("Welcome to the Session String Generator Bot! choose an option:", reply_markup=keyboard)
 
 # Handle inline keyboard button presses
 @bot.on_callback_query()
