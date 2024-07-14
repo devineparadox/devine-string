@@ -1,40 +1,148 @@
 import asyncio
+from time import ctime, time, sleep
+from datetime import datetime
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
+from pyrogram.types import Message
+from telethon import TelegramClient, events
+from telethon.errors import SessionPasswordNeededError
+from telethon.sessions import StringSession
+from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, TELETHON_API_ID, TELETHON_API_HASH
+import subprocess
 import logging
-from pyrogram import Client
-import ntplib
-from time import ctime
-
-def sync_time():
-    try:
-        client = ntplib.NTPClient()
-        response = client.request('pool.ntp.org')
-        current_time = ctime(response.tx_time)
-        print(f"Current system time before sync: {current_time}")
-    except Exception as e:
-        print(f"Failed to sync time: {e}")
-
-# Call sync_time before starting your bot
-sync_time
-()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-API_ID = "21048424"
-API_HASH = "1ad8c57a3e3906ee82f5ccbc9aeffb4a"
-PHONE_NUMBER = "+917003729439"
+bot = Client("session_generator_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-async def main():
-    # Sync time without sudo
+# Telethon client setup
+telethon_client = TelegramClient(StringSession(), TELETHON_API_ID, TELETHON_API_HASH)
+
+def sync_time():
+    logger.info(f"Current system time before sync: {datetime.now().isoformat()}")
     try:
-        current_time = await asyncio.create_subprocess_exec("date")
-        await current_time.communicate()
+        subprocess.run(['sudo', 'ntpdate', '-u', 'pool.ntp.org'], check=True)
+        logger.info(f"System time synchronized successfully: {datetime.now().isoformat()}")
     except Exception as e:
-        logger.error(f"Failed to sync time: {e}")
+        logger.error(f"Failed to sync time: {str(e)}")
+
+# Function to generate session string using Pyrogram
+async def generate_pyrogram_session(client, message: Message, retries=3):
+    await message.reply("Please enter your phone number in international format (e.g., +123456789):")
+
+    phone_number = await bot.listen(message.chat.id)
+    phone_number = phone_number.text
+
+    user_client = Client(":memory:", api_id=API_ID, api_hash=API_HASH)
+
+    await user_client.connect()
     
-    async with Client("my_account", api_id=API_ID, api_hash=API_HASH) as app:
-        await app.send_message("me", "Bot started successfully!")
+    try:
+        code = await user_client.send_code(phone_number)
+        await message.reply("Please enter the code you received:")
+        
+        code_text = await bot.listen(message.chat.id)
+        code_text = code_text.text.strip()
+
+        try:
+            await user_client.sign_in(phone_number, code_text)
+        except SessionPasswordNeeded:
+            await message.reply("Please enter your two-step verification password:")
+            password = await bot.listen(message.chat.id)
+            password = password.text.strip()
+            await user_client.check_password(password)
+
+        session_string = await user_client.export_session_string()
+        await message.reply(f"Here is your Pyrogram session string:\n\n`{session_string}`")
+
+    except BadMsgNotification as e:
+        if retries > 0:
+            await asyncio.sleep(1)
+            await generate_pyrogram_session(client, message, retries-1)
+        else:
+            await message.reply(f"An error occurred after multiple retries: {str(e)}")
+    except Exception as e:
+        await message.reply(f"An error occurred: {str(e)}")
+    finally:
+        await user_client.disconnect()
+
+# Function to generate session string using Telethon
+async def generate_telethon_session(client, message: Message):
+    await message.reply("Please enter your phone number in international format (e.g., +123456789):")
+
+    phone_number = await bot.listen(message.chat.id)
+    phone_number = phone_number.text
+
+    await telethon_client.start(phone_number)
+
+    try:
+        session_string = telethon_client.session.save()
+        await message.reply(f"Here is your Telethon session string:\n\n`{session_string}`")
+
+    except SessionPasswordNeededError:
+        await message.reply("Please enter your two-step verification password:")
+        password = await bot.listen(message.chat.id)
+        password = password.text.strip()
+        await telethon_client.start(phone_number, password=password)
+
+        session_string = telethon_client.session.save()
+        await message.reply(f"Here is your Telethon session string:\n\n`{session_string}`")
+
+    finally:
+        await telethon_client.disconnect()
+
+# Command for owner to check bot statistics
+@bot.on_message(filters.command("stats") & filters.user(OWNER_ID))
+async def stats(client, message):
+    # Implement your statistics logic here
+    await message.reply("Bot statistics:\nActive users: 100\nSessions: 50")
+# Logging bot startup events to a specified channel
+@bot.on_chat_member_updated()
+async def log_startup(_, member):
+    # Replace with your log channel ID
+    log_channel_id = -1001234567890  # Example channel ID
+
+    if member.new_chat_member and member.new_chat_member.user.id == bot.get_me().id:
+        await bot.send_message(log_channel_id, f"Bot started in {member.chat.title}")
+
+# Start message for users
+@bot.on_message(filters.command("start"))
+async def start(client, message):
+    # Create inline keyboard with buttons for Telethon and Pyrogram
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Generate Pyrogram Session", callback_data="generate_pyrogram"),
+            InlineKeyboardButton("Generate Telethon Session", callback_data="generate_telethon")
+        ]
+    ])
+
+    await message.reply("Welcome to the Session String Generator Bot! Please choose an option:", reply_markup=keyboard)
+
+# Handle inline keyboard button presses
+@bot.on_callback_query()
+async def callback_handler(client, callback):
+    if callback.data == "generate_pyrogram":
+        await generate_pyrogram_session(client, callback.message)
+    elif callback.data == "generate_telethon":
+        await generate_telethon_session(client, callback.message)
+    else:
+        await callback.answer("Invalid option selected!")
+
+async def start_bot():
+    try:
+        sync_time()
+        logger.info(f"Current system time (epoch): {time()}")
+        sleep(2)  # Sleep for a short while to ensure time synchronization takes effect
+        await bot.start()
+        logger.info("Bot started successfully!")
+    except BadMsgNotification:
+        logger.error("Time synchronization issue detected. Retrying in 5 seconds...")
+        await asyncio.sleep(5)
+        await start_bot()  # Retry bot startup
+    except Exception as e:
+        logger.error(f"An error occurred during startup: {str(e)}")
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(start_bot())
