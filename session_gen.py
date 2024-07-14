@@ -1,6 +1,6 @@
 import asyncio
-import ntplib
 from time import ctime, time, sleep
+from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
@@ -9,6 +9,11 @@ from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
 from telethon.sessions import StringSession
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, TELETHON_API_ID, TELETHON_API_HASH
+import subprocess
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 bot = Client("session_generator_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -16,11 +21,12 @@ bot = Client("session_generator_bot", api_id=API_ID, api_hash=API_HASH, bot_toke
 telethon_client = TelegramClient(StringSession(), TELETHON_API_ID, TELETHON_API_HASH)
 
 def sync_time():
-    client = ntplib.NTPClient()
-    response = client.request('pool.ntp.org')
-    current_time = ctime(response.tx_time)
-    print(f"System time synchronized to: {current_time}")
-    return response.tx_time
+    logger.info(f"Current system time before sync: {datetime.now().isoformat()}")
+    try:
+        subprocess.run(['sudo', 'ntpdate', '-u', 'pool.ntp.org'], check=True)
+        logger.info(f"System time synchronized successfully: {datetime.now().isoformat()}")
+    except Exception as e:
+        logger.error(f"Failed to sync time: {str(e)}")
 
 # Function to generate session string using Pyrogram
 async def generate_pyrogram_session(client, message: Message, retries=3):
@@ -128,8 +134,8 @@ async def callback_handler(client, callback):
 if __name__ == "__main__":
     try:
         sync_time()
-        print(f"Current system time (epoch): {time()}")
+        logger.info(f"Current system time (epoch): {time()}")
         sleep(2)  # Sleep for a short while to ensure time synchronization takes effect
         bot.run()
     except Exception as e:
-        print(f"An error occurred during startup: {str(e)}")
+        logger.error(f"An error occurred during startup: {str(e)}")
