@@ -131,11 +131,19 @@ async def callback_handler(client, callback):
     else:
         await callback.answer("Invalid option selected!")
 
-if __name__ == "__main__":
+async def start_bot():
     try:
         sync_time()
         logger.info(f"Current system time (epoch): {time()}")
         sleep(2)  # Sleep for a short while to ensure time synchronization takes effect
-        bot.run()
+        await bot.start()
+        logger.info("Bot started successfully!")
+    except BadMsgNotification:
+        logger.error("Time synchronization issue detected. Retrying in 5 seconds...")
+        await asyncio.sleep(5)
+        await start_bot()  # Retry bot startup
     except Exception as e:
         logger.error(f"An error occurred during startup: {str(e)}")
+
+if __name__ == "__main__":
+    asyncio.run(start_bot())
