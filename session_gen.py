@@ -1,6 +1,21 @@
 import asyncio
 import logging
 from pyrogram import Client
+import ntplib
+from time import ctime
+
+def sync_time():
+    try:
+        client = ntplib.NTPClient()
+        response = client.request('pool.ntp.org')
+        current_time = ctime(response.tx_time)
+        print(f"Current system time before sync: {current_time}")
+    except Exception as e:
+        print(f"Failed to sync time: {e}")
+
+# Call sync_time before starting your bot
+sync_time
+()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
