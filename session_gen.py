@@ -1,16 +1,15 @@
 import asyncio
-from time import ctime, time, sleep
+from time import time, sleep
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import SessionPasswordNeeded, BadMsgNotification
-from pyrogram.types import Message
-from telethon import TelegramClient, events
+from pyrogram.errors import BadMsgNotification
+from telethon import TelegramClient
 from telethon.errors import SessionPasswordNeededError
 from telethon.sessions import StringSession
 from config import API_ID, API_HASH, BOT_TOKEN, OWNER_ID, TELETHON_API_ID, TELETHON_API_HASH
-import subprocess
 import logging
+import ntplib
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,13 +22,15 @@ telethon_client = TelegramClient(StringSession(), TELETHON_API_ID, TELETHON_API_
 def sync_time():
     logger.info(f"Current system time before sync: {datetime.now().isoformat()}")
     try:
-        subprocess.run(['sudo', 'ntpdate', '-u', 'pool.ntp.org'], check=True)
-        logger.info(f"System time synchronized successfully: {datetime.now().isoformat()}")
+        client = ntplib.NTPClient()
+        response = client.request('pool.ntp.org', version=3)
+        system_time = datetime.fromtimestamp(response.tx_time)
+        logger.info(f"System time synchronized successfully: {system_time.isoformat()}")
     except Exception as e:
         logger.error(f"Failed to sync time: {str(e)}")
 
 # Function to generate session string using Pyrogram
-async def generate_pyrogram_session(client, message: Message, retries=3):
+async def generate_pyrogram_session(client, message):
     await message.reply("Please enter your phone number in international format (e.g., +123456789):")
 
     phone_number = await bot.listen(message.chat.id)
@@ -58,18 +59,14 @@ async def generate_pyrogram_session(client, message: Message, retries=3):
         await message.reply(f"Here is your Pyrogram session string:\n\n`{session_string}`")
 
     except BadMsgNotification as e:
-        if retries > 0:
-            await asyncio.sleep(1)
-            await generate_pyrogram_session(client, message, retries-1)
-        else:
-            await message.reply(f"An error occurred after multiple retries: {str(e)}")
+        await message.reply(f"An error occurred: {str(e)}")
     except Exception as e:
         await message.reply(f"An error occurred: {str(e)}")
     finally:
         await user_client.disconnect()
 
 # Function to generate session string using Telethon
-async def generate_telethon_session(client, message: Message):
+async def generate_telethon_session(client, message):
     await message.reply("Please enter your phone number in international format (e.g., +123456789):")
 
     phone_number = await bot.listen(message.chat.id)
@@ -98,6 +95,7 @@ async def generate_telethon_session(client, message: Message):
 async def stats(client, message):
     # Implement your statistics logic here
     await message.reply("Bot statistics:\nActive users: 100\nSessions: 50")
+
 # Logging bot startup events to a specified channel
 @bot.on_chat_member_updated()
 async def log_startup(_, member):
