@@ -1,7 +1,7 @@
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import SessionPasswordNeeded
+from pyrogram.errors import SessionPasswordNeeded, BadRequest
 from pyrogram.types import Message
 from telethon import TelegramClient, events
 from telethon.errors import SessionPasswordNeededError
@@ -23,11 +23,11 @@ async def generate_pyrogram_session(client, message: Message):
     user_client = Client(":memory:", api_id=API_ID, api_hash=API_HASH)
 
     await user_client.connect()
-    
+
     try:
         code = await user_client.send_code(phone_number)
         await message.reply("Please enter the code you received:")
-        
+
         code_text = await bot.listen(message.chat.id)
         code_text = code_text.text.strip()
 
@@ -41,6 +41,15 @@ async def generate_pyrogram_session(client, message: Message):
 
         session_string = await user_client.export_session_string()
         await message.reply(f"Here is your Pyrogram session string:\n\n`{session_string}`")
+
+    except BadRequest as e:
+        if e.MESSAGE.startswith('The message with ID'):
+            await user_client.send_code(phone_number, force_sms=True)
+            code_text = await bot.listen(message.chat.id)
+            code_text = code_text.text.strip()
+            await user_client.sign_in(phone_number, code_text)
+            session_string = await user_client.export_session_string()
+            await message.reply(f"Here is your Pyrogram session string:\n\n`{session_string}`")
 
     except Exception as e:
         await message.reply(f"An error occurred: {str(e)}")
@@ -99,7 +108,7 @@ async def start(client, message):
         ]
     ])
 
-    await message.reply("Welcome to the Session String Generator Bot! choose an option:", reply_markup=keyboard)
+    await message.reply("Welcome to the Session String Generator Bot! Please choose an option:", reply_markup=keyboard)
 
 # Handle inline keyboard button presses
 @bot.on_callback_query()
